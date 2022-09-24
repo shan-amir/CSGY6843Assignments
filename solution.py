@@ -27,17 +27,21 @@ def webServer(port=13331):
 
             # Send an HTTP header line into socket for a valid request. What header should be sent for a response that is ok?
             validresponse = b"HTTP/1.1 200 OK " \
-                            b"Connection: close" \
-                            b"Content-Type: text/html; charset=UTF-8\r\n"
+                            b"Connection: close " \
+                            b"Content-Type: text/html; charset=UTF-8\r\n "
             print(validresponse)
             connectionSocket.send(validresponse)
             print("hi")
 
             htmlarray = f.readlines()
             data = " ".join(htmlarray)
-            print(data)
+            output = validresponse + data.encode()
+            print(output)
+            connectionSocket.send(output)
+            print("hi again")
+            # print(data)
             # for i in f:  # for line in file
-            connectionSocket.send(data)
+                # connectionSocket.send(i.encode())
             connectionSocket.close()  # closing the connection socket
 
         except Exception as e:
