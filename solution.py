@@ -8,7 +8,7 @@ def webServer(port=13331):
     serverSocket = socket(AF_INET, SOCK_STREAM)
 
     # Prepare a server socket
-    serverSocket.bind(("", port))
+    serverSocket.bind(('0.0.0.0', port))
 
     serverSocket.listen(1)
 
@@ -23,30 +23,20 @@ def webServer(port=13331):
             filename = message.split()[1]
 
             # opens the client requested file.
-            f = open(filename[1:], "r")
+            f = open(filename[1:])
+            contents = f.read()
+            f.close()
 
             # Send an HTTP header line into socket for a valid request. What header should be sent for a response that is ok?
-            validresponse = b"HTTP/1.1 200 OK " \
-                            b"Connection: close " \
-                            b"Content-Type: text/html; charset=UTF-8\r\n "
-            print(validresponse)
-            connectionSocket.send(validresponse)
-            print("hi")
-
-            htmlarray = f.readlines()
-            data = " ".join(htmlarray)
-            output = validresponse + data.encode()
-            print(output)
-            connectionSocket.send(output)
-            print("hi again")
-            # print(data)
+            validresponse = 'HTTP/1.1 200 OK\n\n' + contents
+            connectionSocket.sendall(validresponse.encode())
             # for i in f:  # for line in file
                 # connectionSocket.send(i.encode())
             connectionSocket.close()  # closing the connection socket
 
         except Exception as e:
-            connectionSocket.send(b"HTTP/1.1 404 Not Found")
-            break
+            connectionSocket.send(b"HTTP/1.1 404 NOT FOUND")
+            connectionSocket.close()
 
     serverSocket.close()
     sys.exit()  # Terminate the program after sending the corresponding data
