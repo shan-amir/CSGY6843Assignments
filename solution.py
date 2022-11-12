@@ -1,4 +1,5 @@
 from socket import *
+import warnings
 import os
 import sys
 import struct
@@ -8,7 +9,7 @@ import binascii
 import pandas as pd
 
 ICMP_ECHO_REQUEST = 8
-
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def checksum(string):
     csum = 0
@@ -41,7 +42,7 @@ def receiveOnePing(mySocket, ID, timeout, destAddr):
         whatReady = select.select([mySocket], [], [], timeLeft)
         howLongInSelect = (time.time() - startedSelect)
         if whatReady[0] == []:  # Timeout
-            return "Request timed out."
+            return "Request timed out.", [0, 0, 0]
 
         timeReceived = time.time()
         recPacket, addr = mySocket.recvfrom(1024)
@@ -52,15 +53,18 @@ def receiveOnePing(mySocket, ID, timeout, destAddr):
         icmpHeader = recPacket[20:28]
         icmpType, code, mychecksum, packetID, sequence = struct.unpack("bbHHh", icmpHeader)
 
-        if type != 8 and packetID == ID:
+        if icmpType == 0 and code == 0 and packetID == ID:
+            ipHeader = recPacket[:20]
+            version, type, length, id, flags, ttl, protocol, checksum, srcIp, destIp = struct.unpack("!BBHHHBBHII", ipHeader)
             bytesInDouble = struct.calcsize("d")
-            timeSent = struct.unpack("d", recPacket[28:28 + bytesInDouble])[0]
-            return timeReceived - timeSent
+            timeSent = struct.unpack("d", recPacket[28:28 + length])[0]
+            delay = round((timeReceived - timeSent)*1000, 2)
+            return delay, [length, 2*delay, ttl]
 
         # Fill in end
         timeLeft = timeLeft - howLongInSelect
         if timeLeft <= 0:
-            return "Request timed out."
+            return "Request timed out.", [0, 0, 0]
 
 
 def sendOnePing(mySocket, destAddr, ID):
@@ -119,15 +123,16 @@ def ping(host, timeout=1):
 
     for i in range(0, 4):  # Four pings will be sent (loop runs for i=0, 1, 2, 3)
         delay, statistics = doOnePing(dest, timeout)  # what is stored into delay and statistics?
-        response = response.append({'bytes': statistics[0], 'rtt': statistics[1], 'ttl': statistics[2]}) # store your bytes, rtt, and ttl here in your response pandas dataframe. An example is commented out below for vars
-        print(delay)
+        response = response.append({'bytes': statistics[0], 'rtt': statistics[1], 'ttl': statistics[2]}, ignore_index=True)  # store your bytes, rtt, and ttl here in your response pandas dataframe. An example is commented out below for vars
+        print(delay) if "Request timed out" in str(delay) \
+            else print(f"Reply from {dest}: bytes={statistics[0]} time={statistics[1]} TTL={statistics[2]}")
         time.sleep(1)  # wait one second
 
     packet_lost = 0
     packet_recv = 0
     # fill in start. UPDATE THE QUESTION MARKS
     for index, row in response.iterrows():
-        if response[row]['bytes'] == 0:  # access your response df to determine if you received a packet or not
+        if response.loc[index, 'bytes'] == 0:  # access your response df to determine if you received a packet or not
             packet_lost = packet_lost+1
         else:
             packet_recv = packet_recv+1
@@ -145,3 +150,4 @@ def ping(host, timeout=1):
 
 if __name__ == '__main__':
     ping("google.com")
+    ping("nyu.edu")
