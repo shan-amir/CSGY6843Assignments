@@ -7,12 +7,13 @@ import time
 import select
 import binascii
 import pandas as pd
+import warnings
 
 ICMP_ECHO_REQUEST = 8
 MAX_HOPS = 30
 TIMEOUT = 2.0
 TRIES = 1
-
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # The packet that we shall send to each router along the path is the ICMP echo
 # request packet, which is exactly what we had used in the ICMP ping exercise.
@@ -55,14 +56,9 @@ def build_packet():
     # Header is type (8), code (8), checksum (16), id (16), sequence (16)
 
     myChecksum = 0
-    # Make a dummy header with a 0 checksum
-    # struct -- Interpret strings as packed binary data
     header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, myChecksum, os.getpid(), 1)
     data = struct.pack("d", time.time())
-    # Calculate the checksum on the data and the dummy header.
     myChecksum = checksum(header + data)
-
-    # Get the right checksum, and put in the header
 
     if sys.platform == 'darwin':
         # Convert 16-bit integers from host to network  byte order
@@ -89,7 +85,7 @@ def get_route(hostname):
 
             # Fill in start
             # Make a raw socket named mySocket
-            mySocket = socket(AF_INET, SOCK_RAW)
+            mySocket = socket(AF_INET, SOCK_RAW, getprotobyname("icmp"))
             # Fill in end
 
             mySocket.setsockopt(IPPROTO_IP, IP_TTL, struct.pack('I', ttl))
@@ -104,8 +100,7 @@ def get_route(hostname):
                 if whatReady[0] == []:  # Timeout
                     # Fill in start
                     # append response to your dataframe including hop #, try #, and "Timeout" responses as required by the acceptance criteria
-                    df.append({'Hop Count': ttl, 'Try': tries, 'IP': destAddr, 'Hostname': hostname, 'Response Code': 11})
-                    print(df)
+                    df = df.append({'Hop Count': ttl, 'Try': tries, 'IP': 'timeout', 'Hostname': 'timeout', 'Response Code': 'timeout'}, ignore_index=True)
                     # Fill in end
                 recvPacket, addr = mySocket.recvfrom(1024)
                 timeReceived = time.time()
@@ -113,8 +108,7 @@ def get_route(hostname):
                 if timeLeft <= 0:
                     # Fill in start
                     # append response to your dataframe including hop #, try #, and "Timeout" responses as required by the acceptance criteria
-                    df.append({'Hop Count': ttl, 'Try': tries, 'IP': destAddr, 'Hostname': hostname, 'Response Code': 0})
-                    print(df)
+                    df = df.append({'Hop Count': ttl, 'Try': tries, 'IP': 'timeout', 'Hostname': 'timeout', 'Response Code': 'timeout'}, ignore_index=True)
                     # Fill in end
             except Exception as e:
                 # print (e) # uncomment to view exceptions
@@ -123,13 +117,13 @@ def get_route(hostname):
             else:
                 # Fill in start
                 # Fetch the icmp type from the IP packet
-                ipHeader = recvPacket[:20]
-                version, types, length, id, flags, ttl, protocol, checksum, srcIp, destIp = struct.unpack("!BBHHHBBHII",
-                                                                                                          ipHeader)
+                icmpHeader = recvPacket[20:28]
+                icmpType, icmpCode, mychecksum, packetID, sequence = struct.unpack("bbHHh", icmpHeader)
+                types = icmpType
                 # Fill in end
                 try:  # try to fetch the hostname
                     # Fill in start
-                    host = gethostbyname(str(destIp))
+                    host = gethostbyaddr(addr[0])[0]
                     # Fill in end
                 except herror:  # if the host does not provide a hostname
                     # Fill in start
@@ -141,26 +135,26 @@ def get_route(hostname):
                     timeSent = struct.unpack("d", recvPacket[28:28 + bytes])[0]
                     # Fill in start
                     # You should update your dataframe with the required column field responses here
-                    df.append({'Hop Count': ttl, 'Try': tries, 'IP': destAddr, 'Hostname': host, 'Response Code': 11})
+                    df = df.append({'Hop Count': ttl, 'Try': tries, 'IP': addr[0], 'Hostname': host, 'Response Code': icmpCode}, ignore_index=True)
                     # Fill in end
                 elif types == 3:
                     bytes = struct.calcsize("d")
                     timeSent = struct.unpack("d", recvPacket[28:28 + bytes])[0]
                     # Fill in start
                     # You should update your dataframe with the required column field responses here
-                    df.append({'Hop Count': ttl, 'Try': tries, 'IP': destAddr, 'Hostname': host, 'Response Code': 3})
+                    df = df.append({'Hop Count': ttl, 'Try': tries, 'IP': addr[0], 'Hostname': host, 'Response Code': icmpCode}, ignore_index=True)
                     # Fill in end
                 elif types == 0:
                     bytes = struct.calcsize("d")
                     timeSent = struct.unpack("d", recvPacket[28:28 + bytes])[0]
                     # Fill in start
                     # You should update your dataframe with the required column field responses here
-                    df.append({'Hop Count': ttl, 'Try': tries, 'IP': destAddr, 'Hostname': host, 'Response Code': 11})
+                    df = df.append({'Hop Count': ttl, 'Try': tries, 'IP': addr[0], 'Hostname': host, 'Response Code': icmpCode}, ignore_index=True)
                     # Fill in end
                 else:
                     # Fill in start
                     # If there is an exception/error to your if statements, you should append that to your df here
-                    df.append({'Hop Count': ttl, 'Try': tries, 'IP': destAddr, 'Hostname': hostname, 'Response Code': 0})
+                    df = df.append({'Hop Count': ttl, 'Try': tries, 'IP': addr[0], 'Hostname': hostname, 'Response Code': icmpCode}, ignore_index=True)
                     # Fill in end
                 break
     print(df)
@@ -168,4 +162,4 @@ def get_route(hostname):
 
 
 if __name__ == '__main__':
-    get_route("google.co.il")
+    get_route("google.com")
